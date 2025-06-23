@@ -10,4 +10,5 @@ dependencies = [
     "janus>=2.0.0",
     "lagent==0.5.0rc2",
     "tenacity>=9.1.2",
+    "vllm>=0.5.4",
 ]
