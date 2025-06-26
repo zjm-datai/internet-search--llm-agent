@@ -1,10 +1,11 @@
-import asyncio 
-import queue 
+import re
 
+import asyncio
+import queue
 
 from typing import Dict, List
 
-from lagent.schema import 
+from lagent.actions import BaseAction
 
 from .streaming import AsyncStreamingAgentForInternLM, StreamingAgentForInternLM
 
@@ -59,8 +60,6 @@ class AsyncSearcherAgent(AsyncStreamingAgentForInternLM):
         message = "\n".join(message) 
         async for message in super().forward(message, session_id=session_id, **kwargs):
             yield message 
-
-
 
 class WebSearchGraph: 
     is_async = False
@@ -182,4 +181,23 @@ class WebSearchGraph:
         if not cls.is_async:
             raise RuntimeError("Event loop cannot be launched as `is_async` is disabled")
         
+
+class ExecutionAction(BaseAction):
+    """Tool used by MindSearch planner to execute graph node query."""
+
+    def run(self, command, local_dict, global_dict, stream_graph=False):
+        def extract_code(text: str) -> str:
+            text = re.sub(r"from ([\w.]+) import WebSearchGraph", "", text)
+            triple_match = re.search(r"```[^\n]*\n(.+?)```", text, re.DOTALL)
+            single_match = re.search(r"`([^`]*)`", text, re.DOTALL)
+            if triple_match:
+                return triple_match.group(1)
+            elif single_match:
+                return single_match.group(1)
+            return text
         
+        command = extract_code(command)
+        exec(command, global_dict, local_dict)
+
+        # 匹配所有 graph.node 中的内容
+        node_list = re.findall(r"graph.node\((.*?)\)", command)
